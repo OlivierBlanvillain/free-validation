@@ -1,7 +1,7 @@
 import cats.arrow.NaturalTransformation
 import cats.data.Validated
 import cats.functor._
-import cats.syntax.monoidal._
+import cats.syntax.cartesian._
 import cats._
 
 import play.api.libs.json._
@@ -9,8 +9,6 @@ import play.api.data.mapping._
 
 import Function.unlift
 import simulacrum.typeclass
-
-@typeclass trait InvariantMonoidal[F[_]] extends Invariant[F] with Monoidal[F]
 
 // trait RuleLike[B, A] {
 //   def read(b: B): VA[A]
@@ -45,6 +43,7 @@ trait Codec[A, B] extends RuleLike[B, A] with WriteLike[A, B] { self =>
 object Toplevel {
   implicit def formatIsInvariantMonoidal[B](implicit s: Semigroup[B]): InvariantMonoidal[Codec[?, B]] =
     new InvariantMonoidal[Codec[?, B]] {
+      def pure[A](a: A): Codec[A, B] = ??? // TODO
       def imap[A, AA](fa: Codec[A, B])(f: A => AA)(g: AA => A): Codec[AA, B] = fa.imap(f)(g)
       def product[A, AA](fa: Codec[A, B], fb: Codec[AA, B]): Codec[(A, AA), B] = fa.product(fb)
     }
@@ -137,40 +136,4 @@ object Usage extends App {
   
   println(json)
   println(validated)
-}
-
-trait FreeInvariantMonoidal[F[_], A] extends Product with Serializable { self =>
-  import FreeInvariantMonoidal.{FA, Zip, Suspend, Imap}
-  
-  def imap[B](f: A => B)(g: B => A): FA[F, B] =
-    Imap(this, f, g)
-  
-  def product[B](fb: FA[F, B]): FA[F, (A, B)] =
-    Zip(this, fb)
-  
-  def foldMap[G[_]](nt: NaturalTransformation[F, G])(implicit im: InvariantMonoidal[G]): G[A] =
-    this match {
-      case Suspend(fa) => nt(fa)
-      case Zip(fa, fb) => im.product(fa.foldMap(nt), fb.foldMap(nt)).asInstanceOf[G[A]]
-      case Imap(fa, f, g) => im.imap(fa.foldMap(nt))(f)(g)
-    }
-}
-
-object FreeInvariantMonoidal {
-  type FA[F[_], A] = FreeInvariantMonoidal[F, A]
-  
-  private final case class Suspend[F[_], A](fa: F[A]) extends FA[F, A]
-  
-  private final case class Zip[F[_], A, B, C](fa: FA[F, A], fb: FA[F, B]) extends FA[F, C]
-  
-  private final case class Imap[F[_], A, B](fa: FA[F, A], f: A => B, g: B => A) extends FA[F, B]
-  
-  def lift[F[_], A](fa: F[A]): FA[F, A] =
-    Suspend(fa)
-  
-  implicit def freeInvariantMonoidal[S[_]]: InvariantMonoidal[FA[S, ?]] =
-    new InvariantMonoidal[FA[S, ?]] {
-       def imap[A, B](fa: FA[S, A])(f: A => B)(g: B => A): FA[S, B] = fa.imap(f)(g)
-       def product[A, B](fa: FA[S, A], fb: FA[S, B]): FA[S, (A, B)] = fa.product(fb)
-    }
 }
