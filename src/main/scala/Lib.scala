@@ -1,8 +1,5 @@
 package free.validation
 
-import cats.free.Free
-import scala.Function.{unlift, tupled}
-
 object Algebra {
   type Dsl[A] = FreeInvariantMonoidal[AL, A]
   
@@ -12,8 +9,10 @@ object Algebra {
   case class IntAL[A](field: String, value: Int => A, cvalue: A => Int) extends AL[A]
   case class StrAL[A](field: String, value: String => A, cvalue: A => String) extends AL[A]
   case class ObjAL[A](field: String, value: Dsl[A]) extends AL[A]
+  
   case class DocAL[A](doc: String, value: Dsl[A]) extends AL[A]
   case class EnsureAL[A](e: A => Boolean, r: A => String, value: Dsl[A]) extends AL[A]
+  // case class OptionalAL[A](value: Dsl[A]) extends AL[A]
 }
 
 object Dsl {
@@ -24,8 +23,10 @@ object Dsl {
   def int(field: String): Dsl[Int] = lift(IntAL(field, identity, identity))
   def str(field: String): Dsl[String] = lift(StrAL(field, identity, identity))
   def obj[A](field: String)(value: Dsl[A]): Dsl[A] = lift(ObjAL(field, value))
+  
   def doc[A](field: String)(value: Dsl[A]): Dsl[A] = lift(DocAL(field, value))
   def ensure[A](e: A => Boolean, r: A => String)(value: Dsl[A]): Dsl[A] = lift(EnsureAL(e, r, value))
+  // def optional[A](value: Dsl[A]): Dsl[Option[A]] = lift(OptionalAL(value))
 }
 
 object Helpers {
@@ -52,4 +53,9 @@ object Helpers {
     def msg(p: (A, A)) = s"$p is not increating"
     ensure[(A, A)](Function.tupled(o.lt), msg)(value)
   }
+  
+  // The `???` and the `.right.get` are safe if the natural transformations handle `ensure` as expected.
+  def validate[A, B](f: A => Either[String, B], g: B => A)(value: Dsl[A]): Dsl[B] =
+    (value % ensure[A](a => f(a).isLeft, a => f(a).fold(identity, _ => "???")))
+      .imap(a => f(a).right.get)(g)
 }
