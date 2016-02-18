@@ -2,7 +2,6 @@ scalaVersion := "2.11.7"
 
 libraryDependencies ++= Seq(
   "org.typelevel" %% "cats" % "0.4.1",
-  "com.chuusai" %% "shapeless" % "2.2.5",
   "com.github.mpilquist" %% "simulacrum" % "0.5.0",
   "io.github.jto" %% "validation-core" % "1.0.2",
   "io.github.jto" %% "validation-json" % "1.0.2",
@@ -27,5 +26,6 @@ scalacOptions := Seq(
   "-Ywarn-dead-code",
   "-Ywarn-numeric-widen",
   "-Ywarn-value-discard",
+  "-Ywarn-unused-import",
   "-Xfuture"
 )

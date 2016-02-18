@@ -1,10 +1,18 @@
+package free.validation
+
 import cats._
 import cats.arrow.NaturalTransformation
-import cats.data.Const
+import cats.functor.Invariant
+import simulacrum.typeclass
 
-/**
- * Invariant Monoidal for Free
- */
+// https://github.com/typelevel/cats/pull/845
+
+/** Invariant version of a Monoidal. */
+@typeclass trait InvariantMonoidal[F[_]] extends Invariant[F] with Cartesian[F] {
+  def pure[A](a: A): F[A]
+}
+
+/** Invariant Monoidal for Free */
 sealed abstract class FreeInvariantMonoidal[F[_], A] extends Product with Serializable { self =>
   import FreeInvariantMonoidal.{FA, Zip, Imap, Pure, lift}
 
