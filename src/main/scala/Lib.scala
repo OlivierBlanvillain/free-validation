@@ -6,13 +6,20 @@ object Algebra {
   // To be expended with Null Boolean and Seq, option should maybe be added in the Algebra.
   
   sealed trait AL[A]
-  case class IntAL[A](field: String, value: Int => A, cvalue: A => Int) extends AL[A]
-  case class StrAL[A](field: String, value: String => A, cvalue: A => String) extends AL[A]
-  case class ObjAL[A](field: String, value: Dsl[A]) extends AL[A]
+  case class IntAL[A](field: String) extends AL[Int]
+  case class StringAL[A](field: String) extends AL[String]
+  case class BooleanAL[A](field: String) extends AL[Boolean]
+  case class ShortAL[A](field: String) extends AL[Short]
+  case class LongAL[A](field: String) extends AL[Long]
+  case class FloatAL[A](field: String) extends AL[Float]
+  case class BigDecimalAL[A](field: String) extends AL[BigDecimal]
+  case class DoubleAL[A](field: String) extends AL[Double]
   
-  case class DocAL[A](doc: String, value: Dsl[A]) extends AL[A]
+  case class ObjectAL[A](field: String, value: Dsl[A]) extends AL[A]
   case class EnsureAL[A](e: A => Boolean, r: A => String, value: Dsl[A]) extends AL[A]
-  // case class OptionalAL[A](value: Dsl[A]) extends AL[A]
+  case class OptionalAL[A](value: Dsl[A]) extends AL[A]
+  
+  case class SeqAl[A](value: Dsl[A]) extends AL[Seq[A]]
 }
 
 object Dsl {
@@ -20,32 +27,39 @@ object Dsl {
   import FreeInvariantMonoidal.lift
   type Dsl[A] = FreeInvariantMonoidal[AL, A]
   
-  def int(field: String): Dsl[Int] = lift(IntAL(field, identity, identity))
-  def str(field: String): Dsl[String] = lift(StrAL(field, identity, identity))
-  def obj[A](field: String)(value: Dsl[A]): Dsl[A] = lift(ObjAL(field, value))
+  def int(field: String): Dsl[Int] = lift[AL, Int](IntAL(field))
+  def string(field: String): Dsl[String] = lift[AL, String](StringAL(field))
+  def boolean(field: String): Dsl[Boolean] = lift[AL, Boolean](BooleanAL(field))
+  def short(field: String): Dsl[Short] = lift[AL, Short](ShortAL(field))
+  def long(field: String): Dsl[Long] = lift[AL, Long](LongAL(field))
+  def float(field: String): Dsl[Float] = lift[AL, Float](FloatAL(field))
+  def bigdecimal(field: String): Dsl[BigDecimal] = lift[AL, BigDecimal](BigDecimalAL(field))
+  def double(field: String): Dsl[Double] = lift[AL, Double](DoubleAL(field))
   
-  def doc[A](field: String)(value: Dsl[A]): Dsl[A] = lift(DocAL(field, value))
+  def obj[A](field: String)(value: Dsl[A]): Dsl[A] = lift(ObjectAL(field, value))
   def ensure[A](e: A => Boolean, r: A => String)(value: Dsl[A]): Dsl[A] = lift(EnsureAL(e, r, value))
-  // def optional[A](value: Dsl[A]): Dsl[Option[A]] = lift(OptionalAL(value))
+  def optional[A](value: Dsl[A]): Dsl[Option[A]] =
+    (lift(OptionalAL(value)): Dsl[A]).imap(Option.apply)(_.get)
+    
+  def seq[A](value: Dsl[A]): Dsl[Seq[A]] = lift[AL, Seq[A]](SeqAl(value))
 }
 
 object Helpers {
   import Dsl._
-  
-  def getField[A](v: Dsl[_]) = "Can probably be obtained by recursively foldind over `v`..."
+  import play.api.data.mapping.VA
   
   def min(i: Int)(value: Dsl[Int]): Dsl[Int] = {
-    def msg(j: Int) = s"Minimum authorised value for field ${getField(value)} is $i, given $j"
+    def msg(j: Int) = s"$j is above the $i"
     ensure[Int](i.>=, msg)(value)
   }
   
   def max(i: Int)(value: Dsl[Int]): Dsl[Int] = {
-    def msg(j: Int) = s"Maximum authorised value for field ${getField(value)} is $i, given $j"
+    def msg(j: Int) = s"$j is below $i"
     ensure[Int](i.<=, msg)(value)
   }
   
   def nonEmpty(value: Dsl[String]): Dsl[String] = {
-    def msg(s: String) = s"Empty string for field ${getField(value)})"
+    def msg(s: String) = s"Empty string"
     ensure[String](_.nonEmpty, msg)(value)
   }
   
@@ -54,8 +68,8 @@ object Helpers {
     ensure[(A, A)](Function.tupled(o.lt), msg)(value)
   }
   
-  // The `???` and the `.right.get` are safe if the natural transformations handle `ensure` as expected.
-  def validate[A, B](f: A => Either[String, B], g: B => A)(value: Dsl[A]): Dsl[B] =
-    (value % ensure[A](a => f(a).isLeft, a => f(a).fold(identity, _ => "???")))
-      .imap(a => f(a).right.get)(g)
+  // The `???` and the `.get` are safe if the compiler handle `ensure` as expected.
+  def iflatMap[A, B](f: A => VA[B], g: B => A)(value: Dsl[A]): Dsl[B] =
+    (value % ensure[A](a => f(a).isSuccess, a => f(a).fold(_ => "???", _.toString)))
+      .imap(a => f(a).get)(g)
 }

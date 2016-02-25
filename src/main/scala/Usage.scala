@@ -8,22 +8,26 @@ import free.validation.Helpers._
 
 object Usage extends App {
   case class Pet(name: String, weight: Int)
+  case class OS(name: Option[String], weight: Seq[Int])
   case class Person(name: String, age: Int, pet: Pet)
   case class Range(start: Int, end: Int)
   
+  (string("name") % optional |@| seq(int("weight")))
+    .imap(OS.apply)(unlift(OS.unapply))
+      
   // Simple validation:
   val petConfig =
-    (str("name") |@| int("weight"))
+    (string("name") |@| int("weight"))
       .imap(Pet.apply)(unlift(Pet.unapply))
   
   // Fields with validation:
-  (str("name") % nonEmpty |@| int("weight") % min(10) % max(100))
+  (string("name") % nonEmpty |@| int("weight") % min(10) % max(100))
     .imap(Pet.apply)(unlift(Pet.unapply))
 
   // Fields with doc:
-  ( str("name") % doc("This is the full name (first name + last name) of a Person") |@|
-    int("age") % doc("This is the age of a Person, in days / 365") |@|
-    petConfig % obj("pet") % doc("That's his pet.")
+  ( string("name") |@|
+    int("age") |@|
+    petConfig % obj("pet")
   ).imap(Person.apply)(unlift(Person.unapply))
   
   // Validating two fields at once:
@@ -31,7 +35,7 @@ object Usage extends App {
     .imap(tupled(Range.apply))(unlift(Range.unapply))
   
   val personConfig =
-    (str("name") |@| int("age") |@| obj("pet")(petConfig))
+    (string("name") |@| int("age") |@| obj("pet")(petConfig))
       .imap(Person.apply)(unlift(Person.unapply))
   
   val codec: Codec[Person, JsObject] =

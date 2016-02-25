@@ -2,7 +2,7 @@ scalaVersion := "2.11.7"
 
 libraryDependencies ++= Seq(
   "org.typelevel" %% "cats" % "0.4.1",
-  "com.github.mpilquist" %% "simulacrum" % "0.5.0",
+  "com.github.mpilquist" %% "simulacrum" % "0.7.0",
   "io.github.jto" %% "validation-core" % "1.0.2",
   "io.github.jto" %% "validation-json" % "1.0.2",
   compilerPlugin("org.scalamacros" %% "paradise" % "2.1.0-M5" cross CrossVersion.full),
