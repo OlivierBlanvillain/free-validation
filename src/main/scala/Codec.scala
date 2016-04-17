@@ -11,12 +11,12 @@ trait Codec[A, B] extends RuleLike[B, A] with WriteLike[A, B] { self =>
       def validate(b: B): VA[AA] = self.validate(b).map(f)
       def writes(aa: AA): B = self.writes(g(aa))
     }
-  
+
   def validationProduct[E, T, U](va: Validation[E, T], vb: Validation[E, U]): Validation[E, (T, U)] = {
     val apply =  Validation.applicativeValidation[E].apply[T, (T, U)] _
     apply(vb.map(x => (_ -> x)), va)
   }
-  
+
   def product[AA](ff: Codec[AA, B])(implicit s: Semigroup[B]): Codec[(A, AA), B] =
     new Codec[(A, AA), B] {
       def validate(b: B): VA[(A, AA)] = validationProduct(self.validate(b), (ff.validate(b)))
@@ -31,7 +31,11 @@ object Codec {
         def validate(data: B): VA[A] = Success(a)
         def writes(i: A): B = m.empty
       }
-      def imap[A, AA](fa: Codec[A, B])(f: A => AA)(g: AA => A): Codec[AA, B] = fa.imap(f)(g)
-      def product[A, AA](fa: Codec[A, B], fb: Codec[AA, B]): Codec[(A, AA), B] = fa.product(fb)
+
+      def imap[A, AA](fa: Codec[A, B])(f: A => AA)(g: AA => A): Codec[AA, B] =
+        fa.imap(f)(g)
+
+      def product[A, AA](fa: Codec[A, B], fb: Codec[AA, B]): Codec[(A, AA), B] =
+        fa.product(fb)
     }
 }

@@ -3,18 +3,18 @@ package free.validation
 import cats._
 import cats.arrow.NaturalTransformation
 import cats.functor.Invariant
-import simulacrum.typeclass
+import cats.free.Inject
 
-// https://github.com/typelevel/cats/pull/845
+// See https://github.com/typelevel/cats/pull/845
 
 /** Invariant version of a Monoidal. */
-@typeclass trait InvariantMonoidal[F[_]] extends Invariant[F] with Cartesian[F] {
+@simulacrum.typeclass trait InvariantMonoidal[F[_]] extends Invariant[F] with Cartesian[F] {
   def pure[A](a: A): F[A]
 }
 
 /** Invariant Monoidal for Free */
-sealed abstract class FreeInvariantMonoidal[F[_], A] extends Product with Serializable { self =>
-  import FreeInvariantMonoidal.{FA, Zip, Imap, Pure, lift}
+sealed abstract class FreeIM[F[_], A] extends Product with Serializable { self =>
+  import FreeIM.{FA, Zip, Imap, lift}
 
   def imap[B](f: A => B)(g: B => A): FA[F, B] =
     Imap(this, f, g)
@@ -40,8 +40,15 @@ sealed abstract class FreeInvariantMonoidal[F[_], A] extends Product with Serial
     }
 }
 
-object FreeInvariantMonoidal {
-  type FA[F[_], A] = FreeInvariantMonoidal[F, A]
+object FreeIM {
+  type FA[F[_], A] = FreeIM[F, A]
+
+  private[validation] final class FreeIMInjectCurried[F[_], G[_]] {
+    def apply[A](fa: F[A])(implicit I: Inject[F, G]): FreeIM[G, A] =
+      FreeIM.lift(I.inj(fa))
+  }
+
+  def inject[G[_], H[_]]: FreeIMInjectCurried[G, H] = new FreeIMInjectCurried
 
   private final case class Pure[F[_], A](a: A) extends FA[F, A] {
     def foldMap[G[_]](nt: NaturalTransformation[F, G])(implicit im: InvariantMonoidal[G]): G[A] =
@@ -69,10 +76,10 @@ object FreeInvariantMonoidal {
   def lift[F[_], A](fa: F[A]): FA[F, A] =
     Suspend(fa)
 
-  /** `FreeInvariantMonoidal[S, ?]` has a FreeInvariantMonoidal for any type constructor `S[_]`. */
+  /** `FreeIM[S, ?]` has a FreeIM for any type constructor `S[_]`. */
   implicit def freeInvariant[S[_]]: InvariantMonoidal[FA[S, ?]] =
     new InvariantMonoidal[FA[S, ?]] {
-      def pure[A](a: A): FA[S, A] = FreeInvariantMonoidal.pure(a)
+      def pure[A](a: A): FA[S, A] = FreeIM.pure(a)
       def imap[A, B](fa: FA[S, A])(f: A => B)(g: B => A): FA[S, B] = fa.imap(f)(g)
       def product[A, B](fa: FA[S, A], fb: FA[S, B]): FA[S, (A, B)] = fa.product(fb)
     }
