@@ -11,7 +11,7 @@ object Usage extends App {
   import CoreDsl.playStyle._
 
   case class Pet(name: String, weight: Int)
-  case class Person(name: String, age: Int, pet: Pet)
+  case class Person(name: String, age: Int, pet: Option[Pet])
 
   implicit val petConfig =
     (
@@ -23,17 +23,22 @@ object Usage extends App {
     (
       (__ \ "name").as[String] |@|
       (__ \ "age").as[Int] |@|
-      (__ \ "pet").as[Pet]
+      (__ \ "pet").as[Option[Pet]]
     ).imap(Person.apply)(unlift(Person.unapply))
 
   val codec: Codec[Person, JsObject] =
     personConfig.foldMap[Codec[?, JsObject]](Compile2JsCodec.nt)
 
-  val me = Person("Olivier", 25, Pet("sansan", 10))
+  val me = Person("Olivier", 25, Some(Pet("sansan", 10)))
+  val me2 = Person("Olivier", 25, None)
 
   val json: JsObject = codec.writes(me)
+  val json2: JsObject = codec.writes(me2)
   val validated = codec.validate(json)
+  val validated2 = codec.validate(json2)
 
   println(json)
+  println(json2)
   println(validated)
+  println(validated2)
 }

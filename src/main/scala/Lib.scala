@@ -4,25 +4,23 @@ import cats.free.Inject
 import play.api.data.mapping.Path
 
 object Algebra {
- sealed trait CoreAlgebra[A]
-  case class IntAL       [A](path: Path) extends CoreAlgebra[Int]
-  case class StringAL    [A](path: Path) extends CoreAlgebra[String]
-  case class BooleanAL   [A](path: Path) extends CoreAlgebra[Boolean]
-  case class ShortAL     [A](path: Path) extends CoreAlgebra[Short]
-  case class LongAL      [A](path: Path) extends CoreAlgebra[Long]
-  case class FloatAL     [A](path: Path) extends CoreAlgebra[Float]
-  case class BigDecimalAL[A](path: Path) extends CoreAlgebra[BigDecimal]
-  case class DoubleAL    [A](path: Path) extends CoreAlgebra[Double]
+  sealed trait CoreAlgebra[A]
+  case class IntAL        [A](path: Path) extends CoreAlgebra[Int]
+  case class StringAL     [A](path: Path) extends CoreAlgebra[String]
+  case class BooleanAL    [A](path: Path) extends CoreAlgebra[Boolean]
+  case class ShortAL      [A](path: Path) extends CoreAlgebra[Short]
+  case class LongAL       [A](path: Path) extends CoreAlgebra[Long]
+  case class FloatAL      [A](path: Path) extends CoreAlgebra[Float]
+  case class BigDecimalAL [A](path: Path) extends CoreAlgebra[BigDecimal]
+  case class DoubleAL     [A](path: Path) extends CoreAlgebra[Double]
+  case class ObjectAL     [A](path: Path, value: FreeIM[CoreAlgebra, A]) extends CoreAlgebra[A]
+  case class OptionalAL   [A](path: Path, value: FreeIM[CoreAlgebra, A]) extends CoreAlgebra[A]
+  case class SeqAl        [A](path: Path, value: FreeIM[CoreAlgebra, A]) extends CoreAlgebra[A]
 
-  case class ObjectAL    [A](path: Path, value: FreeIM[CoreAlgebra, A]) extends CoreAlgebra[A]
-  case class SeqAl       [A](path: Path, value: FreeIM[CoreAlgebra, A]) extends CoreAlgebra[Seq[A]]
-  case class OptionalAL  [A](value: FreeIM[CoreAlgebra, A])             extends CoreAlgebra[A]
-
-  case class EnsureAL[A](
-    condition: A => Boolean,
-    message: A => String,
-    value: FreeIM[CoreAlgebra ,A]
-  ) extends CoreAlgebra[A]
+  sealed trait CoreMarkers[A]
+  case class NonEmpty[A]() extends CoreMarkers[A]
+  case class Min[A: Numeric](value: Int) extends CoreMarkers[A]
+  case class Max[A: Numeric](value: Int) extends CoreMarkers[A]
 }
 
 object Dsl {
@@ -44,13 +42,13 @@ object Dsl {
       lift(ObjectAL(path, value))
 
     implicit def seq[A](path: Path)(implicit value: FreeIM[CoreAlgebra, A]): FreeIM[F, Seq[A]] =
-      lift(SeqAl(path, value))
+      lift(SeqAl(path, value.imap(null)(null)))
 
-    def optional[A](path: Path)(value: FreeIM[CoreAlgebra, A]): FreeIM[F, A] =
-      lift(OptionalAL(value))
+    implicit def opt[A](path: Path)(implicit value: FreeIM[CoreAlgebra, A]): FreeIM[F, Option[A]] =
+      lift(OptionalAL(path, value.imap(null)(null)))
 
-    def ensure[A](condition: A => Boolean, message: A => String)(value: FreeIM[CoreAlgebra, A]): FreeIM[F, A] =
-      lift(EnsureAL(condition, message, value))
+    // def ensure[A](condition: A => Boolean, message: A => String)(value: FreeIM[CoreAlgebra, A]): FreeIM[F, A] =
+    //   lift(EnsureAL(condition, message, value))
   }
 
   object CoreDsl {
@@ -68,33 +66,33 @@ object Dsl {
   }
 }
 
-object Helpers {
-  import Algebra.CoreAlgebra
-  import Dsl.CoreDsl.freeStyle._
-  import play.api.data.mapping.VA
+// object Helpers {
+//   import Algebra.CoreAlgebra
+//   import Dsl.CoreDsl.freeStyle._
+//   import play.api.data.mapping.VA
 
-  def min(i: Int)(value: FreeIM[CoreAlgebra, Int]): FreeIM[CoreAlgebra, Int] = {
-    def msg(j: Int) = s"$j is above the $i"
-    ensure[Int](i.>=, msg)(value)
-  }
+//   def min(i: Int)(value: FreeIM[CoreAlgebra, Int]): FreeIM[CoreAlgebra, Int] = {
+//     def msg(j: Int) = s"$j is above the $i"
+//     ensure[Int](i.>=, msg)(value)
+//   }
 
-  def max(i: Int)(value: FreeIM[CoreAlgebra, Int]): FreeIM[CoreAlgebra, Int] = {
-    def msg(j: Int) = s"$j is below $i"
-    ensure[Int](i.<=, msg)(value)
-  }
+//   def max(i: Int)(value: FreeIM[CoreAlgebra, Int]): FreeIM[CoreAlgebra, Int] = {
+//     def msg(j: Int) = s"$j is below $i"
+//     ensure[Int](i.<=, msg)(value)
+//   }
 
-  def nonEmpty(value: FreeIM[CoreAlgebra, String]): FreeIM[CoreAlgebra, String] = {
-    def msg(s: String) = s"Empty string"
-    ensure[String](_.nonEmpty, msg)(value)
-  }
+//   def nonEmpty(value: FreeIM[CoreAlgebra, String]): FreeIM[CoreAlgebra, String] = {
+//     def msg(s: String) = s"Empty string"
+//     ensure[String](_.nonEmpty, msg)(value)
+//   }
 
-  def increasing[A](value: FreeIM[CoreAlgebra, (A, A)])(implicit o: Ordering[A]): FreeIM[CoreAlgebra, (A, A)] = {
-    def msg(p: (A, A)) = s"$p is not increating"
-    ensure[(A, A)](Function.tupled(o.lt), msg)(value)
-  }
+//   def increasing[A](value: FreeIM[CoreAlgebra, (A, A)])(implicit o: Ordering[A]): FreeIM[CoreAlgebra, (A, A)] = {
+//     def msg(p: (A, A)) = s"$p is not increating"
+//     ensure[(A, A)](Function.tupled(o.lt), msg)(value)
+//   }
 
-  // The `???` and the `.get` are safe if the compiler handle `ensure` as expected.
-  def iflatMap[A, B](f: A => VA[B], g: B => A)(value: FreeIM[CoreAlgebra, A]): FreeIM[CoreAlgebra, B] =
-    (value % ensure[A](a => f(a).isSuccess, a => f(a).fold(_ => "???", _.toString)))
-      .imap(a => f(a).get)(g)
-}
+//   // The `???` and the `.get` are safe if the compiler handle `ensure` as expected.
+//   def iflatMap[A, B](f: A => VA[B], g: B => A)(value: FreeIM[CoreAlgebra, A]): FreeIM[CoreAlgebra, B] =
+//     (value % ensure[A](a => f(a).isSuccess, a => f(a).fold(_ => "???", _.toString)))
+//       .imap(a => f(a).get)(g)
+// }

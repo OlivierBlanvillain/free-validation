@@ -50,22 +50,22 @@ object FreeIM {
 
   def inject[G[_], H[_]]: FreeIMInjectCurried[G, H] = new FreeIMInjectCurried
 
-  private final case class Pure[F[_], A](a: A) extends FA[F, A] {
+  case class Pure[F[_], A](a: A) extends FA[F, A] {
     def foldMap[G[_]](nt: NaturalTransformation[F, G])(implicit im: InvariantMonoidal[G]): G[A] =
       im.pure(a)
   }
 
-  private final case class Suspend[F[_], A](fa: F[A]) extends FA[F, A] {
+  case class Suspend[F[_], A](fa: F[A]) extends FA[F, A] {
     def foldMap[G[_]](nt: NaturalTransformation[F, G])(implicit im: InvariantMonoidal[G]): G[A] =
       nt(fa)
   }
 
-  private final case class Zip[F[_], A, B](fa: FA[F, A], fb: FA[F, B]) extends FA[F, (A, B)] {
+  case class Zip[F[_], A, B](fa: FA[F, A], fb: FA[F, B]) extends FA[F, (A, B)] {
     def foldMap[G[_]](nt: NaturalTransformation[F, G])(implicit im: InvariantMonoidal[G]): G[(A, B)] =
       im.product(fa.foldMap(nt), fb.foldMap(nt))
   }
 
-  private final case class Imap[F[_], A, B](fa: FA[F, A], f: A => B, g: B => A) extends FA[F, B] {
+  case class Imap[F[_], A, B](fa: FA[F, A], f: A => B, g: B => A) extends FA[F, B] {
     def foldMap[G[_]](nt: NaturalTransformation[F, G])(implicit im: InvariantMonoidal[G]): G[B] =
       im.imap(fa.foldMap(nt))(f)(g)
   }

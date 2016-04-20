@@ -43,11 +43,12 @@ object CustomUsage {
         (__ \ "weight").as[Int]
       ).imap(Pet.apply)(unlift(Pet.unapply))
 
-    (
-      (__ \ "name").as[String] |@|
-      (__ \ "age").as[Int] |@|
-      obj(__ \ "pet")(petConfig)
-    ).imap(Person.apply)(unlift(Person.unapply))
+    null
+    // (
+    //   (__ \ "name").as[String] |@|
+    //   (__ \ "age").as[Int] |@|
+    //   obj(__ \ "pet")(petConfig)
+    // ).imap(Person.apply)(unlift(Person.unapply))
   }
 
 }
