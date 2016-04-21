@@ -40,15 +40,24 @@ sealed abstract class FreeIM[F[_], A] extends Product with Serializable { self =
     }
 }
 
-object FreeIM {
+object FreeIM extends LowPriorityFreeIM {
   type FA[F[_], A] = FreeIM[F, A]
+
+  def inject[G[_], H[_]]: FreeIMInjectCurried[G, H] = new FreeIMInjectCurried
 
   private[validation] final class FreeIMInjectCurried[F[_], G[_]] {
     def apply[A](fa: F[A])(implicit I: Inject[F, G]): FreeIM[G, A] =
       FreeIM.lift(I.inj(fa))
   }
 
-  def inject[G[_], H[_]]: FreeIMInjectCurried[G, H] = new FreeIMInjectCurried
+  def injectHK[F[_[_], _], A[_], B[_]]: FreeIMInjectCurriedHK[F, A, B] = new FreeIMInjectCurriedHK
+
+  private[validation] final class FreeIMInjectCurriedHK[F[_[_], _], A[_], B[_]] {
+    def apply[T](fat: F[A, T])(implicit I: Inject[A, B], F: FunctorHK[Lambda[l[_] => F[l, T]]]): FreeIM[F[B, ?], T] = {
+      val lul: F[B, T] = F.map[A, B, T](fat)(I.inj _)
+      FreeIM.lift[F[B, ?], T](lul)
+    }
+  }
 
   case class Pure[F[_], A](a: A) extends FA[F, A] {
     def foldMap[G[_]](nt: NaturalTransformation[F, G])(implicit im: InvariantMonoidal[G]): G[A] =
@@ -83,4 +92,9 @@ object FreeIM {
       def imap[A, B](fa: FA[S, A])(f: A => B)(g: B => A): FA[S, B] = fa.imap(f)(g)
       def product[A, B](fa: FA[S, A], fb: FA[S, B]): FA[S, (A, B)] = fa.product(fb)
     }
+}
+
+trait LowPriorityFreeIM {
+  // implicit def freeIMInvariant[S[_]]: Invariant[FreeIM[S, ?]] = FreeIM.freeIMInvariant[S]
+  // implicit def freeIMCartesian[S[_]]: Cartesian[FreeIM[S, ?]] = FreeIM.freeIMInvariant[S]
 }

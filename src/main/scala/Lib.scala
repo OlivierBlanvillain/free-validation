@@ -4,65 +4,77 @@ import cats.free.Inject
 import play.api.data.mapping.Path
 
 object Algebra {
-  sealed trait CoreAlgebra[A]
-  case class IntAL        [A](path: Path) extends CoreAlgebra[Int]
-  case class StringAL     [A](path: Path) extends CoreAlgebra[String]
-  case class BooleanAL    [A](path: Path) extends CoreAlgebra[Boolean]
-  case class ShortAL      [A](path: Path) extends CoreAlgebra[Short]
-  case class LongAL       [A](path: Path) extends CoreAlgebra[Long]
-  case class FloatAL      [A](path: Path) extends CoreAlgebra[Float]
-  case class BigDecimalAL [A](path: Path) extends CoreAlgebra[BigDecimal]
-  case class DoubleAL     [A](path: Path) extends CoreAlgebra[Double]
-  case class ObjectAL     [A](path: Path, value: FreeIM[CoreAlgebra, A]) extends CoreAlgebra[A]
-  case class OptionalAL   [A](path: Path, value: FreeIM[CoreAlgebra, A]) extends CoreAlgebra[A]
-  case class SeqAl        [A](path: Path, value: FreeIM[CoreAlgebra, A]) extends CoreAlgebra[A]
+  sealed trait CoreAlgebra[M[_], A]
+  type CA[M[_], A] = CoreAlgebra[M, A]
+  case class IntAL        [M[_]](path: Path, mark: Seq[M[Int]])        extends CA[M, Int]
+  case class StringAL     [M[_]](path: Path, mark: Seq[M[String]])     extends CA[M, String]
+  case class BooleanAL    [M[_]](path: Path, mark: Seq[M[Boolean]])    extends CA[M, Boolean]
+  case class ShortAL      [M[_]](path: Path, mark: Seq[M[Short]])      extends CA[M, Short]
+  case class LongAL       [M[_]](path: Path, mark: Seq[M[Long]])       extends CA[M, Long]
+  case class FloatAL      [M[_]](path: Path, mark: Seq[M[Float]])      extends CA[M, Float]
+  case class BigDecimalAL [M[_]](path: Path, mark: Seq[M[BigDecimal]]) extends CA[M, BigDecimal]
+  case class DoubleAL     [M[_]](path: Path, mark: Seq[M[Double]])     extends CA[M, Double]
 
-  sealed trait CoreMarkers[A]
-  case class NonEmpty[A]() extends CoreMarkers[A]
-  case class Min[A: Numeric](value: Int) extends CoreMarkers[A]
-  case class Max[A: Numeric](value: Int) extends CoreMarkers[A]
+  case class ObjectAL     [M[_], A](path: Path, value: FreeIM[CA[M, ?], A], marks: Seq[M[A]]) extends CA[M, A]
+  case class OptionalAL   [M[_], A](path: Path, value: FreeIM[CA[M, ?], A]) extends CA[M, Option[A]]
+  case class SeqAl        [M[_], A](path: Path, value: FreeIM[CA[M, ?], A]) extends CA[M, Seq[A]]
+
+  sealed trait DefaultMarks[A]
+  case class NonEmptyM[A]() extends DefaultMarks[A]
+  case class MinM[A](value: Int)(implicit val n: Numeric[A]) extends DefaultMarks[A]
+  case class MaxM[A](value: Int)(implicit val n: Numeric[A]) extends DefaultMarks[A]
 }
 
 object Dsl {
   import Algebra._
 
-  class CoreDsl[F[_]](implicit I: Inject[CoreAlgebra, F]) {
-    private def lift[A](a: CoreAlgebra[A]):  FreeIM[F, A] = FreeIM.inject[CoreAlgebra, F](a)
+  class CoreDsl[M[_]](implicit I: Inject[DefaultMarks, M]) {
+    type CAM[A] = CoreAlgebra[M, A]
+    
+    private def lift[A] = FreeIM.lift[CAM, A] _
 
-    implicit def int       (path: Path): FreeIM[F, Int] =        lift(IntAL(path))
-    implicit def string    (path: Path): FreeIM[F, String] =     lift(StringAL(path))
-    implicit def boolean   (path: Path): FreeIM[F, Boolean] =    lift(BooleanAL(path))
-    implicit def short     (path: Path): FreeIM[F, Short] =      lift(ShortAL(path))
-    implicit def long      (path: Path): FreeIM[F, Long] =       lift(LongAL(path))
-    implicit def float     (path: Path): FreeIM[F, Float] =      lift(FloatAL(path))
-    implicit def bigdecimal(path: Path): FreeIM[F, BigDecimal] = lift(BigDecimalAL(path))
-    implicit def double    (path: Path): FreeIM[F, Double] =     lift(DoubleAL(path))
+    implicit def int       (path: Path)(marks: Seq[M[Int]]): FreeIM[CAM, Int] =               lift(IntAL(path, marks))
+    implicit def string    (path: Path)(marks: Seq[M[String]]): FreeIM[CAM, String] =         lift(StringAL(path, marks))
+    implicit def boolean   (path: Path)(marks: Seq[M[Boolean]]): FreeIM[CAM, Boolean] =       lift(BooleanAL(path, marks))
+    implicit def short     (path: Path)(marks: Seq[M[Short]]): FreeIM[CAM, Short] =           lift(ShortAL(path, marks))
+    implicit def long      (path: Path)(marks: Seq[M[Long]]): FreeIM[CAM, Long] =             lift(LongAL(path, marks))
+    implicit def float     (path: Path)(marks: Seq[M[Float]]): FreeIM[CAM, Float] =           lift(FloatAL(path, marks))
+    implicit def bigdecimal(path: Path)(marks: Seq[M[BigDecimal]]): FreeIM[CAM, BigDecimal] = lift(BigDecimalAL(path, marks))
+    implicit def double    (path: Path)(marks: Seq[M[Double]]): FreeIM[CAM, Double] =         lift(DoubleAL(path, marks))
 
-    implicit def obj[A](path: Path)(implicit value: FreeIM[CoreAlgebra, A]): FreeIM[F, A] =
-      lift(ObjectAL(path, value))
+    implicit def obj[A](path: Path)(marks: Seq[M[A]])(implicit value: FreeIM[CAM, A]): FreeIM[CAM, A] =
+      lift(ObjectAL(path, value, marks))
 
-    implicit def seq[A](path: Path)(implicit value: FreeIM[CoreAlgebra, A]): FreeIM[F, Seq[A]] =
-      lift(SeqAl(path, value.imap(null)(null)))
+    // Marks' not used in those two 
+    implicit def seq[A](path: Path)(marks: Seq[M[A]])(implicit value: FreeIM[CAM, A]): FreeIM[CAM, Seq[A]] =
+      lift(SeqAl(path, value))
 
-    implicit def opt[A](path: Path)(implicit value: FreeIM[CoreAlgebra, A]): FreeIM[F, Option[A]] =
-      lift(OptionalAL(path, value.imap(null)(null)))
-
-    // def ensure[A](condition: A => Boolean, message: A => String)(value: FreeIM[CoreAlgebra, A]): FreeIM[F, A] =
-    //   lift(EnsureAL(condition, message, value))
+    implicit def opt[A](path: Path)(marks: Seq[M[Option[A]]])(implicit value: FreeIM[CAM, A]): FreeIM[CAM, Option[A]] =
+      lift(OptionalAL(path, value))
+    
+    def nonEmpty[A]: M[A] = I.inj(NonEmptyM())
+    def min[A: Numeric](value: Int): M[A] = I.inj(MinM(value))
+    def max[A: Numeric](value: Int): M[A] = I.inj(MaxM(value))
+    
+    
+    implicit val implicitSearchHint: InvariantMonoidal[FreeIM[Lambda[l => CoreAlgebra[M, l]], ?]] =
+      FreeIM.freeInvariant[CoreAlgebra[M, ?]]
+      
+    // Play style stuff
+    
+    type AL[T] = CoreAlgebra[M, T]
+    
+    implicit class RichPath(path: Path) {
+      def as[T](implicit al: Path => Seq[M[T]] => FreeIM[AL, T]): FreeIM[AL, T] = al(path)(Seq())
+      
+      def as[T](mark: M[T])(implicit al: Path => Seq[M[T]] => FreeIM[AL, T]): FreeIM[AL, T] = al(path)(Seq(mark))
+    }
+    
+    val __ = Path
   }
 
   object CoreDsl {
-    implicit def injectCoreDsl[F[_]](implicit I: Inject[CoreAlgebra, F]): CoreDsl[F] = new CoreDsl[F]
-    object playStyle extends CoreDsl[CoreAlgebra] with PlayStyleDsp[CoreAlgebra]
-    object freeStyle extends CoreDsl[CoreAlgebra]
-  }
-
-  trait PlayStyleDsp[F[_]] {
-    val __ = Path
-
-    implicit class RichPath(path: Path) {
-      def as[T](implicit al: Path => FreeIM[F, T]): FreeIM[F, T] = al(path)
-    }
+    implicit def injectCoreDsl[N[_]](implicit I: Inject[DefaultMarks, N]): CoreDsl[N] = new CoreDsl[N]
   }
 }
 
