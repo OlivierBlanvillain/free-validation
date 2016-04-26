@@ -1,8 +1,7 @@
 package free.validation
 
 import cats.arrow.{NaturalTransformation => ~>}
-import cats.data.Coproduct
-import cats.data.Kleisli
+import cats.data.{Coproduct, Const, Kleisli}
 import cats.free.Inject
 import cats.syntax.cartesian._
 import free.validation.Algebra.{DefaultMarks, JsonLikeAlgebra}
@@ -67,11 +66,59 @@ object CustomUsage {
     val validated2 = codec.validate(json2)
     val validated3 = codec.validate(json3)
 
-    println(json)
-    println(json2)
-    println(json3)
-    println(validated)
-    println(validated2)
-    println(validated3)
+    assert(json.toString ==
+      """{"name":"Olivier","age":25,"pet":{"name":"sansan","weight":10}}""")
+
+    assert(json2.toString ==
+      """{"name":"Olivier","age":25,"pet":null}""")
+
+    assert(json3.toString ==
+      """{"name":"","age":25,"pet":{"name":"sansan","weight":10}}""")
+
+    assert(validated.toString ==
+      """Success(Person(Olivier,25,Some(Pet(sansan,10))))""")
+
+    assert(validated2.toString ==
+      """Success(Person(Olivier,25,None))""")
+
+    assert(validated3.toString ==
+      """Failure(List((/name,ArrayBuffer(ValidationError(List(empty string),WrappedArray())))))""")
+
+    val docNT: DocMark ~> Const[Option[String], ?] =
+      new ~>[DocMark, Const[Option[String], ?]] {
+        def apply[A](m: DocMark[A]): Const[Option[String], A] = Const(Some(m.documentation))
+      }
+    
+    def myMarksCompiler[A] = Compile2JsonSchema.compile[MyMarks, A](docNT or Compile2JsonSchema.defaultMarks) _
+    val jsonSchema: JsObject = myMarksCompiler(personConfig)
+    
+    assert(Json.prettyPrint(jsonSchema) ==
+      """{
+      |  "schema" : {
+      |    "type" : "object",
+      |    "properties" : {
+      |      "name" : {
+      |        "type" : "string",
+      |        "description" : "here is my name"
+      |      },
+      |      "age" : {
+      |        "type" : "number",
+      |        "description" : "that's the age"
+      |      },
+      |      "pet" : {
+      |        "type" : "object",
+      |        "properties" : {
+      |          "name" : {
+      |            "type" : "string"
+      |          },
+      |          "weight" : {
+      |            "type" : "number"
+      |          }
+      |        }
+      |      }
+      |    }
+      |  }
+      |}""".stripMargin
+    )
   }
 }

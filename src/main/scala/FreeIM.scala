@@ -4,6 +4,7 @@ import cats._
 import cats.arrow.NaturalTransformation
 import cats.functor.Invariant
 import cats.free.Inject
+import cats.data.Const
 
 // See https://github.com/typelevel/cats/pull/845
 
@@ -11,6 +12,20 @@ import cats.free.Inject
 @simulacrum.typeclass
 trait InvariantMonoidal[F[_]] extends Invariant[F] with Cartesian[F] {
   def pure[A](a: A): F[A]
+}
+
+object InvariantMonoidal {
+  implicit def constIsInvariantMonoidal[T](implicit M: Monoid[T]): InvariantMonoidal[Const[T, ?]] =
+    new InvariantMonoidal[Const[T, ?]] {
+      def product[A, B](fa: Const[T, A], fb: Const[T, B]): Const[T, (A, B)] =
+        Const(M.combine(fa.getConst, fb.getConst))
+
+      def imap[A, B](fa: Const[T, A])(f: A => B)(g: B => A): Const[T, B] =
+        fa.retag[B]
+
+      def pure[A](a: A): Const[T, A] =
+        Const.empty
+    }
 }
 
 /** Invariant Monoidal for Free */

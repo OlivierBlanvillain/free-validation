@@ -18,10 +18,12 @@ object Compile2JsCodec {
             case a: String if a.isEmpty => Some("empty string")
             case _ => None
           }
+          
           case m @ MinM(v) => Kleisli { a =>
             if (m.n.lt(m.n.fromInt(v), a)) None
             else Some(s"min($v) violated by $a")
           }            
+          
           case m @ MaxM(v) => Kleisli { a =>
             if (m.n.gt(m.n.fromInt(v), a)) None
             else Some(s"max($v) violated by $a")
