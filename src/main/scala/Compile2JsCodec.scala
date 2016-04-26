@@ -4,10 +4,10 @@ import free.validation.Algebra._
 import cats.arrow.{NaturalTransformation => ~>}
 import cats.data.Kleisli
 import play.api.libs.json._
-import play.api.data.mapping._
+import play.api.data.mapping.{RuleLike, WriteLike, VA, ValidationError, Path, Success, Failure}
 
 object Compile2JsCodec {
-  def default: CoreAlgebra[DefaultMarks, ?] ~> Codec[?, JsObject] =
+  def default: JsonLikeAlgebra[DefaultMarks, ?] ~> Codec[?, JsObject] =
     compile(defaultMarks)
     
   def defaultMarks: DefaultMarks ~> Kleisli[Option, ?, String] =
@@ -29,8 +29,8 @@ object Compile2JsCodec {
         }
     }
   
-  def compile[M[_]](marksHandler: M ~> Kleisli[Option, ?, String]): CoreAlgebra[M, ?] ~> Codec[?, JsObject] =
-    new ~>[CoreAlgebra[M, ?], Codec[?, JsObject]] {
+  def compile[M[_]](marksHandler: M ~> Kleisli[Option, ?, String]): JsonLikeAlgebra[M, ?] ~> Codec[?, JsObject] =
+    new ~>[JsonLikeAlgebra[M, ?], Codec[?, JsObject]] {
       import play.api.data.mapping.json.Rules._
       import play.api.data.mapping.json.Writes._
 
@@ -56,7 +56,7 @@ object Compile2JsCodec {
               path.write[A, JsValue].writes(a).as[JsObject]
           }
 
-      def apply[A](value: CoreAlgebra[M, A]): Codec[A, JsObject] = {
+      def apply[A](value: JsonLikeAlgebra[M, A]): Codec[A, JsObject] = {
         value match {
           case IntAL       (path, marks) => handleLeaf(path, marks)
           case StringAL    (path, marks) => handleLeaf(path, marks)

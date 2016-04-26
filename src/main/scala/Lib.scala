@@ -4,8 +4,8 @@ import cats.free.Inject
 import play.api.data.mapping.Path
 
 object Algebra {
-  sealed trait CoreAlgebra[M[_], A]
-  type CA[M[_], A] = CoreAlgebra[M, A]
+  sealed trait JsonLikeAlgebra[M[_], A]
+  type CA[M[_], A] = JsonLikeAlgebra[M, A]
   case class IntAL        [M[_]](path: Path, mark: Seq[M[Int]])        extends CA[M, Int]
   case class StringAL     [M[_]](path: Path, mark: Seq[M[String]])     extends CA[M, String]
   case class BooleanAL    [M[_]](path: Path, mark: Seq[M[Boolean]])    extends CA[M, Boolean]
@@ -28,83 +28,56 @@ object Algebra {
 object Dsl {
   import Algebra._
 
-  class CoreDsl[M[_]](implicit I: Inject[DefaultMarks, M]) {
-    type CAM[A] = CoreAlgebra[M, A]
+  class JsonLikeDsl[M[_]](implicit I: Inject[DefaultMarks, M]) extends DefaultMarksDsl[M](I) with PlayStyleDsl[M] {
+    type AL[A] = JsonLikeAlgebra[M, A]
     
-    private def lift[A] = FreeIM.lift[CAM, A] _
+    private def lift[A] = FreeIM.lift[AL, A] _
 
-    implicit def int       (path: Path)(marks: Seq[M[Int]]): FreeIM[CAM, Int] =               lift(IntAL(path, marks))
-    implicit def string    (path: Path)(marks: Seq[M[String]]): FreeIM[CAM, String] =         lift(StringAL(path, marks))
-    implicit def boolean   (path: Path)(marks: Seq[M[Boolean]]): FreeIM[CAM, Boolean] =       lift(BooleanAL(path, marks))
-    implicit def short     (path: Path)(marks: Seq[M[Short]]): FreeIM[CAM, Short] =           lift(ShortAL(path, marks))
-    implicit def long      (path: Path)(marks: Seq[M[Long]]): FreeIM[CAM, Long] =             lift(LongAL(path, marks))
-    implicit def float     (path: Path)(marks: Seq[M[Float]]): FreeIM[CAM, Float] =           lift(FloatAL(path, marks))
-    implicit def bigdecimal(path: Path)(marks: Seq[M[BigDecimal]]): FreeIM[CAM, BigDecimal] = lift(BigDecimalAL(path, marks))
-    implicit def double    (path: Path)(marks: Seq[M[Double]]): FreeIM[CAM, Double] =         lift(DoubleAL(path, marks))
-
-    implicit def obj[A](path: Path)(marks: Seq[M[A]])(implicit value: FreeIM[CAM, A]): FreeIM[CAM, A] =
+    implicit def int(path: Path)(marks: Seq[M[Int]]): FreeIM[AL, Int] = lift(IntAL(path, marks))
+    implicit def string(path: Path)(marks: Seq[M[String]]): FreeIM[AL, String] = lift(StringAL(path, marks))
+    implicit def boolean(path: Path)(marks: Seq[M[Boolean]]): FreeIM[AL, Boolean] = lift(BooleanAL(path, marks))
+    implicit def short(path: Path)(marks: Seq[M[Short]]): FreeIM[AL, Short] = lift(ShortAL(path, marks))
+    implicit def long(path: Path)(marks: Seq[M[Long]]): FreeIM[AL, Long] = lift(LongAL(path, marks))
+    implicit def float(path: Path)(marks: Seq[M[Float]]): FreeIM[AL, Float] = lift(FloatAL(path, marks))
+    implicit def bigd(path: Path)(marks: Seq[M[BigDecimal]]): FreeIM[AL, BigDecimal] = lift(BigDecimalAL(path, marks))
+    implicit def double(path: Path)(marks: Seq[M[Double]]): FreeIM[AL, Double] = lift(DoubleAL(path, marks))
+    
+    implicit def obj[A](path: Path)(marks: Seq[M[A]])(implicit value: FreeIM[AL, A]): FreeIM[AL, A] =
       lift(ObjectAL(path, value, marks))
 
     // Marks' not used in those two 
-    implicit def seq[A](path: Path)(marks: Seq[M[A]])(implicit value: FreeIM[CAM, A]): FreeIM[CAM, Seq[A]] =
+    implicit def seq[A](path: Path)(marks: Seq[M[A]])(implicit value: FreeIM[AL, A]): FreeIM[AL, Seq[A]] =
       lift(SeqAl(path, value))
 
-    implicit def opt[A](path: Path)(marks: Seq[M[Option[A]]])(implicit value: FreeIM[CAM, A]): FreeIM[CAM, Option[A]] =
+    implicit def opt[A](path: Path)(marks: Seq[M[Option[A]]])(implicit value: FreeIM[AL, A]): FreeIM[AL, Option[A]] =
       lift(OptionalAL(path, value))
-    
+  }
+  
+  object JsonLikeDsl {
+    implicit def injectJsonLikeDsl[N[_]](implicit I: Inject[DefaultMarks, N]): JsonLikeDsl[N] = new JsonLikeDsl[N]
+  }
+  
+  class DefaultMarksDsl[M[_]](I: Inject[DefaultMarks, M]) {
     def nonEmpty[A]: M[A] = I.inj(NonEmptyM())
     def min[A: Numeric](value: Int): M[A] = I.inj(MinM(value))
     def max[A: Numeric](value: Int): M[A] = I.inj(MaxM(value))
+  }
+  
+  trait PlayStyleDsl[M[_]] {
+    type JLAL[A] = JsonLikeAlgebra[M, A]
     
-    
-    implicit val implicitSearchHint: InvariantMonoidal[FreeIM[Lambda[l => CoreAlgebra[M, l]], ?]] =
-      FreeIM.freeInvariant[CoreAlgebra[M, ?]]
-      
-    // Play style stuff
-    
-    type AL[T] = CoreAlgebra[M, T]
+    implicit val implicitSearchHint: InvariantMonoidal[FreeIM[JLAL, ?]] =
+      FreeIM.freeInvariant[JLAL]
     
     implicit class RichPath(path: Path) {
-      def as[T](implicit al: Path => Seq[M[T]] => FreeIM[AL, T]): FreeIM[AL, T] = al(path)(Seq())
-      
-      def as[T](mark: M[T])(implicit al: Path => Seq[M[T]] => FreeIM[AL, T]): FreeIM[AL, T] = al(path)(Seq(mark))
+      def as[T] = new RichPathCurried[T](path)
+    }
+    
+    class RichPathCurried[T](path: Path) {
+      def apply(marks: M[T]*)(implicit al: Path => Seq[M[T]] => FreeIM[JLAL, T]): FreeIM[JLAL, T] = al(path)(marks)
+      def apply()(implicit al: Path => Seq[M[T]] => FreeIM[JLAL, T]): FreeIM[JLAL, T] = al(path)(Seq())
     }
     
     val __ = Path
   }
-
-  object CoreDsl {
-    implicit def injectCoreDsl[N[_]](implicit I: Inject[DefaultMarks, N]): CoreDsl[N] = new CoreDsl[N]
-  }
 }
-
-// object Helpers {
-//   import Algebra.CoreAlgebra
-//   import Dsl.CoreDsl.freeStyle._
-//   import play.api.data.mapping.VA
-
-//   def min(i: Int)(value: FreeIM[CoreAlgebra, Int]): FreeIM[CoreAlgebra, Int] = {
-//     def msg(j: Int) = s"$j is above the $i"
-//     ensure[Int](i.>=, msg)(value)
-//   }
-
-//   def max(i: Int)(value: FreeIM[CoreAlgebra, Int]): FreeIM[CoreAlgebra, Int] = {
-//     def msg(j: Int) = s"$j is below $i"
-//     ensure[Int](i.<=, msg)(value)
-//   }
-
-//   def nonEmpty(value: FreeIM[CoreAlgebra, String]): FreeIM[CoreAlgebra, String] = {
-//     def msg(s: String) = s"Empty string"
-//     ensure[String](_.nonEmpty, msg)(value)
-//   }
-
-//   def increasing[A](value: FreeIM[CoreAlgebra, (A, A)])(implicit o: Ordering[A]): FreeIM[CoreAlgebra, (A, A)] = {
-//     def msg(p: (A, A)) = s"$p is not increating"
-//     ensure[(A, A)](Function.tupled(o.lt), msg)(value)
-//   }
-
-//   // The `???` and the `.get` are safe if the compiler handle `ensure` as expected.
-//   def iflatMap[A, B](f: A => VA[B], g: B => A)(value: FreeIM[CoreAlgebra, A]): FreeIM[CoreAlgebra, B] =
-//     (value % ensure[A](a => f(a).isSuccess, a => f(a).fold(_ => "???", _.toString)))
-//       .imap(a => f(a).get)(g)
-// }

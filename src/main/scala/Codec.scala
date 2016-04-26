@@ -1,9 +1,9 @@
 package free.validation
 
-import cats._
-import play.api.data.mapping._
+import cats.{Monoid, Semigroup}
+import play.api.data.mapping.{RuleLike, WriteLike, VA, Validation, Success}
 
-/** A = Algebric data type (illegal state is unrepresentable)
+/** A = Algebric data type (illegal state is not representable)
   * B = Bastard data type  (illegal state is representable) */
 trait Codec[A, B] extends RuleLike[B, A] with WriteLike[A, B] { self =>
   def imap[AA](f: A => AA)(g: AA => A): Codec[AA, B] =

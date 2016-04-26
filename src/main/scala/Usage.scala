@@ -1,31 +1,30 @@
 package free.validation
 
 import cats.syntax.cartesian._
-import play.api.libs.json._
+import free.validation.Algebra.{DefaultMarks, JsonLikeAlgebra}
+import free.validation.Dsl.{JsonLikeDsl}
+import play.api.libs.json.JsObject
 import scala.Function.unlift
-import play.api.data.mapping.Path
-import free.validation.Algebra.{DefaultMarks, CoreAlgebra}
-import free.validation.Dsl.{CoreDsl}
 
 object Usage extends App {
-  val coreDsl: CoreDsl[DefaultMarks] = implicitly; import coreDsl._
+  val coreDsl: JsonLikeDsl[DefaultMarks] = implicitly; import coreDsl._
   
-  type AL[T] = CoreAlgebra[DefaultMarks, T]
+  type AL[T] = JsonLikeAlgebra[DefaultMarks, T]
 
   case class Pet(name: String, weight: Int)
   case class Person(name: String, age: Int, pet: Option[Pet])
   
   implicit val petConfig: FreeIM[AL, Pet] =
     (
-      (__ \ "name").as[String] |@|
-      (__ \ "weight").as[Int]
+      (__ \ "name").as[String]() |@|
+      (__ \ "weight").as[Int]()
     ).imap(Pet.apply)(unlift(Pet.unapply))
   
   val personConfig: FreeIM[AL, Person] =
     (
-      (__ \ "name").as[String](nonEmpty[String]) |@|
-      (__ \ "age").as[Int] |@|
-      (__ \ "pet").as[Option[Pet]]
+      (__ \ "name").as[String](nonEmpty) |@|
+      (__ \ "age").as[Int]() |@|
+      (__ \ "pet").as[Option[Pet]]()
     ).imap(Person.apply)(unlift(Person.unapply))
 
   val codec: Codec[Person, JsObject] =

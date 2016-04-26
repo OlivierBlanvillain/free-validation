@@ -1,14 +1,14 @@
 package free.validation
 
-import cats.data.Coproduct
-import cats.free.Inject
-import play.api.libs.json._
-import cats.syntax.cartesian._
-import free.validation.Algebra.{DefaultMarks, CoreAlgebra}
-import free.validation.Dsl._
-import scala.Function.unlift
 import cats.arrow.{NaturalTransformation => ~>}
+import cats.data.Coproduct
 import cats.data.Kleisli
+import cats.free.Inject
+import cats.syntax.cartesian._
+import free.validation.Algebra.{DefaultMarks, JsonLikeAlgebra}
+import free.validation.Dsl.JsonLikeDsl
+import play.api.libs.json._
+import scala.Function.unlift
 
 object Doc {
   case class DocMark[A](documentation: String)
@@ -21,21 +21,19 @@ object Doc {
     implicit def injectDocDsl[N[_]](implicit I: Inject[DocMark, N]): DocDsl[N] = new DocDsl[N]
   }
   
-  val nt: DocMark ~> Kleisli[Option, ?, String] =
-    new ~>[DocMark, Kleisli[Option, ?, String]] {
-      def apply[A](mark: DocMark[A]): Kleisli[Option, A, String] =
-        Kleisli(_ => None)
-    }
+  val nt = new ~>[DocMark, Kleisli[Option, ?, String]] {
+    def apply[A](mark: DocMark[A]): Kleisli[Option, A, String] = Kleisli(_ => None)
+  }
 }
 
 object CustomUsage {
-  def run: Unit = {
+  def run(): Unit = {
     import Doc._
     
     type MyMarks[A] = Coproduct[DocMark, DefaultMarks, A]
-    type AL[T] = CoreAlgebra[MyMarks, T]
+    type AL[T] = JsonLikeAlgebra[MyMarks, T]
     
-    val coreDsl: CoreDsl[MyMarks] = implicitly; import coreDsl._
+    val coreDsl: JsonLikeDsl[MyMarks] = implicitly; import coreDsl._
     val docDsl: DocDsl[MyMarks]   = implicitly; import docDsl._
 
     case class Pet(name: String, weight: Int)
@@ -43,15 +41,15 @@ object CustomUsage {
     
     implicit val petConfig: FreeIM[AL, Pet] =
       (
-        (__ \ "name").as[String] |@|
-        (__ \ "weight").as[Int]
+        (__ \ "name").as[String]() |@|
+        (__ \ "weight").as[Int]()
       ).imap(Pet.apply)(unlift(Pet.unapply))
     
     val personConfig: FreeIM[AL, Person] =
       (
-        (__ \ "name").as[String](nonEmpty[String]) |@|
-        (__ \ "age").as[Int](doc[Int]("that's the age")) |@|
-        (__ \ "pet").as[Option[Pet]]
+        (__ \ "name").as[String](nonEmpty, doc("here is my name")) |@|
+        (__ \ "age").as[Int](doc("that's the age")) |@|
+        (__ \ "pet").as[Option[Pet]]()
       ).imap(Person.apply)(unlift(Person.unapply))
     
     val codec: Codec[Person, JsObject] =
