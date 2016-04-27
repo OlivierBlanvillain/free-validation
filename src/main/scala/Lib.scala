@@ -2,6 +2,8 @@ package free.validation
 
 import cats.free.Inject
 import play.api.data.mapping.Path
+import play.api.data.mapping.VA
+import scala.util.Try
 
 object Algebra {
   sealed trait JsonLikeAlgebra[M[_], A]
@@ -15,6 +17,7 @@ object Algebra {
   case class BigDecimalAL [M[_]](path: Path, mark: Seq[M[BigDecimal]]) extends CA[M, BigDecimal]
   case class DoubleAL     [M[_]](path: Path, mark: Seq[M[Double]])     extends CA[M, Double]
 
+  case class EnsureAL     [M[_], A](prop: A => Boolean, error: A => String, value: FreeIM[CA[M, ?], A]) extends CA[M, A]
   case class ObjectAL     [M[_], A](path: Path, value: FreeIM[CA[M, ?], A], marks: Seq[M[A]]) extends CA[M, A]
   case class OptionalAL   [M[_], A](path: Path, value: FreeIM[CA[M, ?], A]) extends CA[M, Option[A]]
   case class SeqAl        [M[_], A](path: Path, value: FreeIM[CA[M, ?], A]) extends CA[M, Seq[A]]
@@ -51,6 +54,15 @@ object Dsl {
 
     implicit def opt[A](path: Path)(marks: Seq[M[Option[A]]])(implicit value: FreeIM[AL, A]): FreeIM[AL, Option[A]] =
       lift(OptionalAL(path, value))
+
+    def ensure[A](value: FreeIM[CA[M, ?], A])(prop: A => Boolean)(error: A => String) =
+      lift(EnsureAL(prop, error, value))
+
+    def imapVA[A, B](value: FreeIM[AL, A])(f: A => VA[B])(g: B => A): FreeIM[AL, B] =
+      (ensure(value)((a: A) => f(a).isSuccess)((a: A) => f(a).toString)).imap(a => f(a).get)(g)
+
+    def imapTry[A, B](value: FreeIM[AL, A])(f: A => B)(g: B => A): FreeIM[AL, B] =
+      (ensure(value)((a: A) => Try(f(a)).isSuccess)((a: A) => Try(f(a)).toString)).imap(a => f(a))(g)
   }
   
   object JsonLikeDsl {

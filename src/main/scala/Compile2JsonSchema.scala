@@ -60,6 +60,8 @@ object Compile2JsonSchema {
               )
             )
 
+          case EnsureAL(_, _, v) => v.foldMap[Const[JsObject, ?]](this)
+
           case SeqAl(path, v) => Const(Json.obj())
         }
       }

@@ -89,7 +89,21 @@ object Compile2JsCodec {
                   case Some(x) => path.write(c).writes(x).as[JsObject]
                 }
             }
-          
+
+          case EnsureAL(prop, error, v) =>
+            val c: Codec[A, JsObject] = v.foldMap[Codec[?, JsObject]](this)
+            
+            new Codec[A, JsObject] {
+              def validate(data: JsObject): VA[A] =
+                c.validate(data) match {
+                  case Success(a) if !prop(a) =>
+                    Failure(Seq((Path, Seq(ValidationError(error(a))))))
+                  case x => x
+                }
+
+              def writes(a: A): JsObject = c.writes(a)
+            }
+
           case SeqAl(path, v) =>
             ???
         }
