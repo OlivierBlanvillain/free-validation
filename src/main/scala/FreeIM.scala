@@ -1,3 +1,5 @@
+/*
+
 package free.validation
 
 import cats._
@@ -100,3 +102,5 @@ object FreeIM {
       def product[A, B](fa: FA[S, A], fb: FA[S, B]): FA[S, (A, B)] = fa.product(fb)
     }
 }
+
+*/

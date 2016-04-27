@@ -1,3 +1,5 @@
+/*
+
 package free.validation
 
 import cats.arrow.{NaturalTransformation => ~>}
@@ -122,3 +124,5 @@ object CustomUsage {
     )
   }
 }
+
+*/

@@ -1,6 +1,8 @@
 package free.validation
 
 import cats.free.Inject
+import cats.Applicative
+import cats.free.{FreeApplicative => FreeIM}
 import play.api.data.mapping.Path
 
 object Algebra {
@@ -66,8 +68,8 @@ object Dsl {
   trait PlayStyleDsl[M[_]] {
     type JLAL[A] = JsonLikeAlgebra[M, A]
     
-    implicit val implicitSearchHint: InvariantMonoidal[FreeIM[JLAL, ?]] =
-      FreeIM.freeInvariant[JLAL]
+    implicit val implicitSearchHint: Applicative[FreeIM[JLAL, ?]] =
+      FreeIM.freeApplicative[JLAL]
     
     implicit class RichPath(path: Path) {
       def as[T] = new RichPathCurried[T](path)

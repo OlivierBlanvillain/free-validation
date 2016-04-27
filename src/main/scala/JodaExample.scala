@@ -4,6 +4,7 @@ import cats.syntax.cartesian._
 import free.validation.Algebra.{DefaultMarks, JsonLikeAlgebra}
 import free.validation.Dsl.JsonLikeDsl
 import org.joda.time.{DateTime, DateTimeZone}
+import cats.free.{FreeApplicative => FreeIM}
 
 object JodaExample {
   val coreDsl: JsonLikeDsl[DefaultMarks] = implicitly; import coreDsl._
@@ -13,9 +14,7 @@ object JodaExample {
   val freeDateTime: FreeIM[AL, DateTime] = (
     (
       (__ \ "unix").as[Long]() |@|
-      (__ \ "zone").as[String]().imap(DateTimeZone.forID)(_.getID)
-    ).imap
-      { case (unix, zone) => new DateTime(unix, zone) }
-      { case dateTime => (dateTime.getMillis() / 1000, dateTime.getZone) }
+      (__ \ "zone").as[String]().map(DateTimeZone.forID)
+    ).map { case (unix, zone) => new DateTime(unix, zone) }
   )
 }

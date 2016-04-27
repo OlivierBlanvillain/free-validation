@@ -1,6 +1,6 @@
 package free.validation
 
-import cats.{Monoid, Semigroup}
+import cats.{Monoid, Semigroup, Applicative}
 import play.api.data.mapping.{RuleLike, WriteLike, VA, Validation, Success}
 
 /** A = Algebric data type (illegal state is not representable)
@@ -25,6 +25,7 @@ trait Codec[A, B] extends RuleLike[B, A] with WriteLike[A, B] { self =>
 }
 
 object Codec {
+  /*
   implicit def codecIsInvariantMonoidal[B](implicit m: Monoid[B]): InvariantMonoidal[Codec[?, B]] =
     new InvariantMonoidal[Codec[?, B]] {
       def pure[A](a: A): Codec[A, B] = new Codec[A, B] {
@@ -37,5 +38,25 @@ object Codec {
 
       def product[A, AA](fa: Codec[A, B], fb: Codec[AA, B]): Codec[(A, AA), B] =
         fa.product(fb)
+    }
+  */
+    
+  implicit def codecIsAlmostApplicative[C](implicit m: Monoid[C]): Applicative[Codec[?, C]] =
+    new Applicative[Codec[?, C]] {
+      def pure[A](a: A): Codec[A, C] = new Codec[A, C] {
+        def validate(data: C): VA[A] = Success(a)
+        def writes(i: A): C = m.empty
+      }
+      
+      def ap[A, B](ff: Codec[A => B, C])(fa: Codec[A, C]): Codec[B, C] =
+        map(ff.product(fa))(x => x._1(x._2))
+      
+      def product[A, B](fa: Codec[A, C],fb: Codec[B, C]): Codec[(A, B), C] =
+        fa.product(fb)
+      
+      // Close your eyes
+      def map[A, B](fa: Codec[A, C])(f: A => B): Codec[B, C] =
+        fa.imap(f)(null)
+      // Open your eyes
     }
 }

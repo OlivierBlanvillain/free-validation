@@ -1,3 +1,5 @@
+/*
+
 package free.validation
 
 import free.validation.Algebra._
@@ -65,3 +67,5 @@ object Compile2JsonSchema {
       }
     }
 }
+
+*/
